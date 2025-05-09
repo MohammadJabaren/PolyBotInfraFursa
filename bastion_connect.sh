@@ -24,7 +24,7 @@ fi
 PRIVATE_IP=$2
 shift 2
 
-# Remaining arguments are optional command
+# Remaining arguments are optional commands
 REMOTE_CMD="$*"
 
 if [ -z "$REMOTE_CMD" ]; then
