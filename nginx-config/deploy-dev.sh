@@ -2,7 +2,7 @@
 set -e
 
 REPO_DIR=$1
-NGINX_CONF_SRC="$REPO_DIR/Nginx/default.conf"
+NGINX_CONF_SRC="$REPO_DIR/nginx-config/default.conf"
 NGINX_CONF_DST="/etc/nginx/conf.d"
 
 # Install the prerequisites:
