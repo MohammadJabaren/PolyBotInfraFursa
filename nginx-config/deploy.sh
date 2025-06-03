@@ -2,7 +2,7 @@
 set -e
 
 REPO_DIR=$1
-NGINX_CONF_SRC="$REPO_DIR/nginx/default.conf"
+NGINX_CONF_SRC="$REPO_DIR/nginx-config/default.conf"
 NGINX_CONF_DST="/etc/nginx/conf.d"
 
 # Install the prerequisites:
@@ -35,7 +35,7 @@ sudo nginx -t
 echo "🔄 Reloading Nginx..."
 sudo systemctl reload nginx
 
-
+#test
 # ✅ Check if Nginx is running
 echo "🩺 Checking if Nginx is running..."
 if systemctl is-active --quiet nginx; then
