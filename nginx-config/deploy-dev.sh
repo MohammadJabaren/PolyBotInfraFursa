@@ -50,7 +50,7 @@ sudo docker rm mynginx || true
 sudo docker run -d --name mynginx \
   -p 443:443 \
   -v "$NGINX_CONF_DST:/etc/nginx/conf.d" \
-  -v "$CERTS_DIR:/etc/nginx/certs" \
+  -v "$CERTS_DIR:/etc/nginx/ssl" \
   nginx
 
 echo "✅ Nginx container deployed with HTTPS support!"
