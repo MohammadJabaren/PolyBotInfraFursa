@@ -44,10 +44,10 @@ cp "$NGINX_CONF_SRC" "$NGINX_CONF_DST/default.conf"
 
 echo "🚢 Deploying Nginx container..."
 
-docker stop mynginx || true
-docker rm mynginx || true
+sudo docker stop mynginx || true
+sudo docker rm mynginx || true
 
-docker run -d --name mynginx \
+sudo docker run -d --name mynginx \
   -p 443:443 \
   -v "$NGINX_CONF_DST:/etc/nginx/conf.d" \
   -v "$CERTS_DIR:/etc/nginx/certs" \
