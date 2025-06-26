@@ -46,7 +46,7 @@ jobs:
             echo "❌ CONTROL_PLANE_IP is empty. Make sure the output exists and is not null."
             exit 1
           fi
-          echo "🔧 Initializing cluster at $CONTROL_PLANE_IP"
+          echo "🔧 Initializing cluster at $(cat ip.txt)"
           
           # Copy the init script to the control plane instance
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no init-control-plane.sh ubuntu@$CONTROL_PLANE_IP:~/init-control-plane.sh
