@@ -1,4 +1,4 @@
-                                             name: Init Control Plane
+name: Init Control Plane
 
 on:
   push:
