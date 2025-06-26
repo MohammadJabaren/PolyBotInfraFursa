@@ -42,6 +42,10 @@ jobs:
         run: |
           # Save the control plane IP into a variable
           CONTROL_PLANE_IP=$(cat ip.txt)
+           if [ -z "$CONTROL_PLANE_IP" ]; then
+            echo "❌ CONTROL_PLANE_IP is empty. Make sure the output exists and is not null."
+            exit 1
+          fi
           echo "🔧 Initializing cluster at $CONTROL_PLANE_IP"
           
           # Copy the init script to the control plane instance
