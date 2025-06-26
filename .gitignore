@@ -2,30 +2,6 @@
 
 **/.terraform/
 # Terraform plan and state files
-*.tfstate
-*.tfstate.backup
-*.tfplan
-
-# Crash logs
-crash.log
-
-# Override files that are meant to be local only
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-
-# Terraform variable files that contain sensitive data
-*.tfvars
-*.tfvars.json
-
-# SSH key files (be extra careful here)
-*.pem
-*.key
-*.pub
 
 # Terraform lock file (optional to ignore in team environments)
 .terraform.lock.hcl
-
-# Output files (like IPs or temp files)
-ip.txt
