@@ -1,0 +1,55 @@
+                                             name: Init Control Plane
+
+on:
+  push:
+    branches:
+      - feature/k8s_infra
+  workflow_dispatch:
+
+jobs:
+  init_control_plane:
+    name: Initialize Kubernetes Control Plane
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: ⚙️ Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-west-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: 🧪 Terraform Init & Get Control Plane IP
+        working-directory: tf
+        run: |
+          terraform init -input=false
+          terraform output -raw control_plane_public_ip > ip.txt
+
+      - name: 🔑 Save EC2 SSH Private Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: 🚀 Copy & Run Init Script on Control Plane
+        working-directory: tf
+        run: |
+          # Save the control plane IP into a variable
+          CONTROL_PLANE_IP=$(cat ip.txt)
+          echo "🔧 Initializing cluster at $CONTROL_PLANE_IP"
+          
+          # Copy the init script to the control plane instance
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no init-control-plane.sh ubuntu@$CONTROL_PLANE_IP:~/init-control-plane.sh
+          
+          # Set proper permissions and run the script
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@$CONTROL_PLANE_IP "
+            chmod +x ~/init-control-plane.sh
+            bash ~/init-control-plane.sh
+          "
+
