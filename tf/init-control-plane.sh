@@ -9,3 +9,4 @@ if [ ! -f /etc/kubernetes/admin.conf ]; then
   else
     echo "✅ Cluster already initialized"
   fi
+  #test
