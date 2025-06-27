@@ -99,6 +99,13 @@ resource "aws_security_group" "cp_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  ingress {
+  description     = "Allow K8s API server access from worker nodes"
+  from_port       = 6443
+  to_port         = 6443
+  protocol        = "tcp"
+  security_groups = [aws_security_group.node_sg.id]
+  }
 # allow outbound for all
   egress {
     from_port   = 0
@@ -269,6 +276,10 @@ resource "aws_instance" "control_panel" {
                 systemctl enable --now crio.service
                 systemctl enable --now kubelet
 
+                sudo apt install -y snapd
+                sudo snap install amazon-ssm-agent --classic
+                sudo systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+                sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
                 swapoff -a
                 (crontab -l 2>/dev/null; echo "@reboot /sbin/swapoff -a") | crontab -
                 EOF
@@ -280,6 +291,261 @@ resource "aws_instance" "control_panel" {
     Env  = var.env
   }
 }
+# create temple to the auto scaling(blueprint)
+resource "aws_launch_template" "worker_launch_template" {
+  name_prefix   = "Jabaren-worker-template-"
+  image_id      = var.ami_id
+  instance_type = "t3.medium"
+  key_name      = var.key_pair_name
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.polybot_Iam_profile.name
+  }
+
+  network_interfaces {
+  associate_public_ip_address = true
+  security_groups             = [aws_security_group.node_sg.id]
+}
+
+  user_data = base64encode(file("${path.module}/worker_user_data.sh"))
+}
+# create the autoscaling
+resource "aws_autoscaling_group" "worker_asg" {
+  name                = "Jabaren-worker-asg"
+  min_size            = 0
+  max_size            = 3
+  desired_capacity    = 0
+  vpc_zone_identifier = module.polybot_service_vpc.public_subnets
+
+  launch_template {
+    id      = aws_launch_template.worker_launch_template.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "Jabaren-worker"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "Role"
+    value               = "worker"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "Env"
+    value               = var.env
+    propagate_at_launch = true
+  }
+}
+
+#--------------------------------------------------------- Join use (Lambda + Lifecycle Hook + SNS + SSM)-----------------------------------
+resource "aws_sns_topic" "asg_notifications" {
+  name = "Jabaren-worker-asg-lifecycle"
+}
+
+resource "aws_autoscaling_lifecycle_hook" "worker_join_hook" {
+  name                   = "Jabaren-worker-join-hook"
+  autoscaling_group_name = aws_autoscaling_group.worker_asg.name
+  lifecycle_transition   = "autoscaling:EC2_INSTANCE_LAUNCHING"
+  default_result         = "CONTINUE"
+  heartbeat_timeout      = 300
+  notification_target_arn = aws_sns_topic.asg_notifications.arn
+  role_arn               = aws_iam_role.asg_lifecycle_role.arn
+}
+
+resource "aws_iam_role" "asg_lifecycle_role" {
+  name = "Jabaren-asg-lifecycle-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action    = "sts:AssumeRole",
+      Principal = { Service = "autoscaling.amazonaws.com" },
+      Effect    = "Allow"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "asg_sns" {
+  role = aws_iam_role.asg_lifecycle_role.name
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect   = "Allow",
+      Action   = "sns:Publish",
+      Resource = aws_sns_topic.asg_notifications.arn
+    }]
+  })
+}
+
+resource "aws_iam_role" "lambda_exec_role" {
+  name = "jabaren-lambda-worker-join"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect    = "Allow",
+      Principal = { Service = "lambda.amazonaws.com" },
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_policy" {
+  role = aws_iam_role.lambda_exec_role.name
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ssm:DescribeInstanceInformation",
+          "ssm:GetCommandInvocation",
+          "ssm:SendCommand",
+          "ssm:ListCommands",
+          "ssm:UpdateInstanceInformation",
+          "ssmmessages:*",
+          "ec2messages:*"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "ec2:DescribeInstances"  # 🔑 REQUIRED for control-plane lookup
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "autoscaling:CompleteLifecycleAction"  # 🔄 REQUIRED to end lifecycle
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
 
 
 
+#resource "aws_lambda_function" "worker_join_lambda" {
+#  filename         = "lambda_payload.zip"
+#  function_name    = "worker-auto-join"
+#  role             = aws_iam_role.lambda_exec_role.arn
+#  handler          = "bootstrap"  # for container or custom runtime
+#  runtime          = "provided.al2"
+#  timeout          = 60
+#  environment { variables = { REGION = var.region } }
+#}
+resource "aws_lambda_function" "worker_join_lambda" {
+  filename         = "lambda_payload.zip"
+  function_name    = "worker-auto-join"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.12"
+  timeout          = 60
+  environment {
+    variables = {
+      REGION = var.region
+    }
+  }
+}
+resource "aws_lambda_permission" "sns_invoke" {
+  statement_id  = "AllowSNS"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.worker_join_lambda.function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = aws_sns_topic.asg_notifications.arn
+}
+
+resource "aws_sns_topic_subscription" "sub" {
+  topic_arn = aws_sns_topic.asg_notifications.arn
+  protocol  = "lambda"
+  endpoint  = aws_lambda_function.worker_join_lambda.arn
+}
+
+resource "aws_iam_policy" "ssm_logs_policy" {
+  name = "Jabaren_ssm_logs_policy"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ssm:DescribeInstanceInformation",
+          "ssm:GetCommandInvocation",
+          "ssm:SendCommand",
+          "ssm:ListCommands"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_ssm_logs" {
+  role       = aws_iam_role.polybot_role.name
+  policy_arn = aws_iam_policy.ssm_logs_policy.arn
+}
+resource "aws_iam_policy" "ssm_instance_policy" {
+  name        = "Jabaren_ssm_instance_policy"
+  description = "Allow EC2 instances to work with SSM"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ssm:DescribeAssociation",
+          "ssm:GetDeployablePatchSnapshotForInstance",
+          "ssm:GetDocument",
+          "ssm:DescribeDocument",
+          "ssm:GetManifest",
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:ListAssociations",
+          "ssm:ListInstanceAssociations",
+          "ssm:PutInventory",
+          "ssm:PutComplianceItems",
+          "ssm:PutConfigurePackageResult",
+          "ssm:UpdateAssociationStatus",
+          "ssm:UpdateInstanceAssociationStatus",
+          "ssm:UpdateInstanceInformation",
+          "ssmmessages:*",
+          "ec2messages:*",
+          "cloudwatch:PutMetricData",
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "attach_ssm_instance_policy" {
+  role       = aws_iam_role.polybot_role.name
+  policy_arn = aws_iam_policy.ssm_instance_policy.arn
+}

@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+
+# Read the event from stdin
+EVENT=$(cat)
+
+# Extract values from the SNS message JSON
+INSTANCE_ID=$(echo "$EVENT" | jq -r '.Records[0].Sns.Message' | jq -r '.EC2InstanceId')
+LIFECYCLE_HOOK=$(echo "$EVENT" | jq -r '.Records[0].Sns.Message' | jq -r '.LifecycleHookName')
+ASG_NAME=$(echo "$EVENT" | jq -r '.Records[0].Sns.Message' | jq -r '.AutoScalingGroupName')
+REGION=${REGION:-"us-west-1"}
+
+echo "Received lifecycle event for instance: $INSTANCE_ID in ASG: $ASG_NAME"
+
+# Step 1: Send SSM command to the control plane to get the join command
+CONTROL_PLANE_INSTANCE_ID=$(aws ec2 describe-instances \
+  --filters "Name=tag:Role,Values=control-panel" \
+  --query "Reservations[0].Instances[0].InstanceId" \
+  --region "$REGION" \
+  --output text)
+
+echo "Fetching kubeadm join command from control plane: $CONTROL_PLANE_INSTANCE_ID"
+
+COMMAND_ID=$(aws ssm send-command \
+  --instance-ids "$CONTROL_PLANE_INSTANCE_ID" \
+  --document-name "AWS-RunShellScript" \
+  --comment "Generate kubeadm join command" \
+  --parameters commands=["kubeadm token create --print-join-command"] \
+  --region "$REGION" \
+  --query "Command.CommandId" \
+  --output text)
+
+# Wait briefly for the command to complete
+sleep 10
+
+JOIN_COMMAND=$(aws ssm get-command-invocation \
+  --instance-id "$CONTROL_PLANE_INSTANCE_ID" \
+  --command-id "$COMMAND_ID" \
+  --region "$REGION" \
+  --query "StandardOutputContent" \
+  --output text)
+
+echo "Join command: $JOIN_COMMAND"
+
+# Step 2: Run join command on the worker instance
+aws ssm send-command \
+  --instance-ids "$INSTANCE_ID" \
+  --document-name "AWS-RunShellScript" \
+  --comment "Run kubeadm join" \
+  --parameters commands=["$JOIN_COMMAND"] \
+  --region "$REGION" > /dev/null
+
+echo "Join command sent to worker: $INSTANCE_ID"
+
+# Step 3: Complete the lifecycle hook to allow instance to finish initializing
+aws autoscaling complete-lifecycle-action \
+  --lifecycle-hook-name "$LIFECYCLE_HOOK" \
+  --auto-scaling-group-name "$ASG_NAME" \
+  --lifecycle-action-result CONTINUE \
+  --instance-id "$INSTANCE_ID" \
+  --region "$REGION"
+
+echo "Lifecycle hook completed."
