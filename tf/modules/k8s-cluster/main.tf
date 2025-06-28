@@ -309,37 +309,6 @@ resource "aws_launch_template" "worker_launch_template" {
 
   user_data = base64encode(file("${path.module}/worker_user_data.sh"))
 }
-# create the autoscaling
-resource "aws_autoscaling_group" "worker_asg" {
-  name                = "Jabaren-worker-asg"
-  min_size            = 1
-  max_size            = 3
-  desired_capacity    = 1
-  vpc_zone_identifier = module.polybot_service_vpc.public_subnets
-
-  launch_template {
-    id      = aws_launch_template.worker_launch_template.id
-    version = "$Latest"
-  }
-
-  tag {
-    key                 = "Name"
-    value               = "Jabaren-worker"
-    propagate_at_launch = true
-  }
-
-  tag {
-    key                 = "Role"
-    value               = "worker"
-    propagate_at_launch = true
-  }
-
-  tag {
-    key                 = "Env"
-    value               = var.env
-    propagate_at_launch = true
-  }
-}
 
 #--------------------------------------------------------- Join use (Lambda + Lifecycle Hook + SNS + SSM)-----------------------------------
 resource "aws_sns_topic" "asg_notifications" {
@@ -548,4 +517,36 @@ resource "aws_iam_policy" "ssm_instance_policy" {
 resource "aws_iam_role_policy_attachment" "attach_ssm_instance_policy" {
   role       = aws_iam_role.polybot_role.name
   policy_arn = aws_iam_policy.ssm_instance_policy.arn
+}
+
+# create the autoscaling
+resource "aws_autoscaling_group" "worker_asg" {
+  name                = "Jabaren-worker-asg"
+  min_size            = 1
+  max_size            = 3
+  desired_capacity    = 1
+  vpc_zone_identifier = module.polybot_service_vpc.public_subnets
+
+  launch_template {
+    id      = aws_launch_template.worker_launch_template.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "Jabaren-worker"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "Role"
+    value               = "worker"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "Env"
+    value               = var.env
+    propagate_at_launch = true
+  }
 }
