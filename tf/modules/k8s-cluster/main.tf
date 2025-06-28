@@ -529,7 +529,6 @@ resource "aws_autoscaling_group" "worker_asg" {
 
   depends_on = [
     aws_sns_topic_subscription.sub,
-    aws_autoscaling_lifecycle_hook.worker_join_hook,
     aws_lambda_function.worker_join_lambda
   ]
 
