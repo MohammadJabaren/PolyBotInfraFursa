@@ -2,7 +2,7 @@ name: Bastion auto-testing
 on:
   push:
     branches:
-      - main
+      - dev
 
 permissions: {}
 

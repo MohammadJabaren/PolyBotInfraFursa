@@ -4,7 +4,7 @@ name: Provision Infrastructure
 on:
   push:
     branches:
-      - feature/k8s_infra
+      - main
 
 jobs:
   provision:
