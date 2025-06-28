@@ -527,6 +527,12 @@ resource "aws_autoscaling_group" "worker_asg" {
   desired_capacity    = 1
   vpc_zone_identifier = module.polybot_service_vpc.public_subnets
 
+  depends_on = [
+    aws_sns_topic_subscription.sub,
+    aws_autoscaling_lifecycle_hook.worker_join_hook,
+    aws_lambda_function.worker_join_lambda
+  ]
+
   launch_template {
     id      = aws_launch_template.worker_launch_template.id
     version = "$Latest"
