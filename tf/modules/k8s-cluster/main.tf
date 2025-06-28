@@ -522,15 +522,10 @@ resource "aws_iam_role_policy_attachment" "attach_ssm_instance_policy" {
 # create the autoscaling
 resource "aws_autoscaling_group" "worker_asg" {
   name                = "Jabaren-worker-asg"
-  min_size            = 1
+  min_size            = 0
   max_size            = 3
-  desired_capacity    = 1
+  desired_capacity    = 0
   vpc_zone_identifier = module.polybot_service_vpc.public_subnets
-
-  depends_on = [
-    aws_sns_topic_subscription.sub,
-    aws_lambda_function.worker_join_lambda
-  ]
 
   launch_template {
     id      = aws_launch_template.worker_launch_template.id
