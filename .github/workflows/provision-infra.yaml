@@ -29,6 +29,6 @@ jobs:
         working-directory: tf
         run: |
           terraform init -input=false
-        #  terraform apply -var-file region.prod.us-west-1.tfvars -auto-approve
+          # terraform apply -var-file region.prod.us-west-1.tfvars -auto-approve
           terraform apply -var-file region.dev.us-west-1.tfvars -auto-approve
 
