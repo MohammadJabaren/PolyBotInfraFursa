@@ -312,9 +312,9 @@ resource "aws_launch_template" "worker_launch_template" {
 # create the autoscaling
 resource "aws_autoscaling_group" "worker_asg" {
   name                = "Jabaren-worker-asg"
-  min_size            = 0
+  min_size            = 1
   max_size            = 3
-  desired_capacity    = 0
+  desired_capacity    = 1
   vpc_zone_identifier = module.polybot_service_vpc.public_subnets
 
   launch_template {
