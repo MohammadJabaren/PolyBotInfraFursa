@@ -5,6 +5,13 @@ terraform {
       version = ">=5.55"
     }
   }
+
+  backend "s3" {
+    bucket         = "jabareen-backend-tf-state"
+    key            = "terraform.tfstate"
+    region         = "us-west-1"
+    encrypt        = true
+  }
 }
 provider "aws" {
   region  = var.region
