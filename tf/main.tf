@@ -8,7 +8,7 @@ terraform {
 }
 provider "aws" {
   region  = var.region
-  profile = "default"  # change in case you want to work with another AWS account profile
+
 }
 
 module "k8s-cluster" {
