@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polybot-dev
+  labels:
+    app: polybot-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: polybot-dev
+  template:
+    metadata:
+      labels:
+        app: polybot-dev
+    spec:
+      containers:
+        - name: polybot
+          image: mohammadjabaren/polybot-dev:31
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8443
+          env:
+            - name: TELEGRAM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: my-secrets-dev
+                  key: TELEGRAM_TOKEN
+            - name: AWS_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: my-secrets-dev
+                  key: AWS_S3_BUCKET
+            - name: PREDICTION_SESSIONS
+              valueFrom:
+                secretKeyRef:
+                  key: PREDICTION_SESSIONS
+                  name: my-secrets-dev
+            - name: DETECTION_OBJECTS
+              valueFrom:
+                secretKeyRef:
+                  key: DETECTION_OBJECTS
+                  name: my-secrets-dev
+            - name: SQS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: my-secrets-dev
+                  key: SQS_URL
+            - name: TYPE_ENV
+              value: "dev"
+            - name: STRORAGE_TYPE
+              value: "dynamodb"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: polybot-dev-service
+  namespace: dev
+spec:
+  selector:
+    app: polybot-dev
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+  type: ClusterIP

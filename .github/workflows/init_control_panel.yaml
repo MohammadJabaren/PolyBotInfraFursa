@@ -1,11 +1,11 @@
 name: Init Control Plane
 
-
 on:
   workflow_run:
     workflows: ["Provision Infrastructure"]
     types:
       - completed
+
 jobs:
   init_control_plane:
     name: Initialize Kubernetes Control Plane
@@ -51,16 +51,41 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: 🚀 Copy & Run Init Script on Control Plane
+      - name: 🔐 Save Secrets to Env File
+        working-directory: tf
+        run: |
+          terraform init -input=false
+          
+          echo "Generating secrets.env"
+          {
+            echo "export AWS_S3_BUCKET=$(terraform output -raw s3_bucket_name)"
+            echo "export SQS_URL=$(terraform output -raw sqs_queue_url)"
+            echo "export TELEGRAM_TOKEN=\"${{ secrets.TELEGRAM_TOKEN }}\""
+            echo "export TYPE_ENV=\"env\""
+            echo "export STRORAGE_TYPE=\"dynamodb\""
+            echo "export PREDICTION_SESSIONS=$(terraform output -raw dynamodb_prediction_table_name)"
+            echo "export DETECTION_OBJECTS=$(terraform output -raw dynamodb_detection_table_name)"
+          } > secrets.env
+
+      - name: 🚀 Copy Scripts and Env to Control Plane
         working-directory: tf
         run: |
           CONTROL_PLANE_IP=$(cat ip.txt | tr -d '\r\n')
 
-          echo "🔧 Initializing cluster at $CONTROL_PLANE_IP"
+          echo "📤 Copying files to $CONTROL_PLANE_IP..."
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no init-control-plane.sh "ubuntu@$CONTROL_PLANE_IP:~/"
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no secrets.env "ubuntu@$CONTROL_PLANE_IP:~/"
 
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no init-control-plane.sh "ubuntu@$CONTROL_PLANE_IP:~/init-control-plane.sh"
+      - name: 🧨 Run Init Script with Secrets
+        working-directory: tf
+        run: |
+          CONTROL_PLANE_IP=$(cat ip.txt | tr -d '\r\n')
 
+          echo "🎯 Executing script with secrets on $CONTROL_PLANE_IP..."
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "ubuntu@$CONTROL_PLANE_IP" "
+            set -euxo pipefail
+            source ~/secrets.env
             chmod +x ~/init-control-plane.sh
             bash ~/init-control-plane.sh
+            rm -f ~/secrets.env
           "

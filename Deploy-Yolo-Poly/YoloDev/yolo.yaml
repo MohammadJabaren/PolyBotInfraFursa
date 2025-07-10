@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: yolo-dev
+  name: yolo-dev
+  namespace: dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: yolo-dev
+  template:
+    metadata:
+      labels:
+        app: yolo-dev
+    spec:
+      containers:
+      - env:
+        - name: AWS_S3_BUCKET
+          valueFrom:
+            secretKeyRef:
+              key: AWS_S3_BUCKET
+              name: my-secrets-dev
+        - name: PREDICTION_SESSIONS
+          valueFrom:
+            secretKeyRef:
+              key: PREDICTION_SESSIONS
+              name: my-secrets-dev
+        - name: DETECTION_OBJECTS
+          valueFrom:
+            secretKeyRef:
+              key: DETECTION_OBJECTS
+              name: my-secrets-dev
+        - name: SQS_URL
+          valueFrom:
+            secretKeyRef:
+              key: SQS_URL
+              name: my-secrets-dev
+        - name: POLYBOT_URL
+          value: polybot-dev-service
+        - name: STORAGE_TYPE
+          value: "dynamodb"
+        - name: LABEL_GSI
+          value: "LabelScoreIndex"
+        - name: SCORE_GSI
+          value: "score_partition-score-index"
+        image: mohammadjabaren/yolo-dev:28
+        name: yolo-container
+        resources:
+          limits:
+            cpu: 250m
+          requests:
+            cpu: 250m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yolo-service
+  namespace: dev
+  labels:
+    monitoring: "true"
+spec:
+  selector:
+    app: yolo-dev
+  ports:
+    - port: 8080         # Internal port (what Ingress sees)
+      targetPort: 8080   # Your app's container port
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: yolo-hpa
+  namespace: dev
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: yolo-dev
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50

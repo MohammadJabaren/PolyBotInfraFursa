@@ -140,6 +140,16 @@ resource "aws_security_group" "node_sg" {
   }
 
 }
+
+resource "aws_security_group_rule" "allow_alb_to_nodeport" {
+  type                     = "ingress"
+  from_port                = 31080
+  to_port                  = 31080
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.node_sg.id
+  source_security_group_id = aws_security_group.alb_sg.id
+  description              = "Allow ALB to access NodePort 31080 on worker nodes"
+}
 # create iam role
 resource "aws_iam_role" "polybot_role" {
   name = "Jabaren_project_role"
@@ -526,6 +536,7 @@ resource "aws_autoscaling_group" "worker_asg" {
   max_size            = 3
   desired_capacity    = 0
   vpc_zone_identifier = module.polybot_service_vpc.public_subnets
+  target_group_arns = [aws_lb_target_group.worker_tg.arn]
 
   launch_template {
     id      = aws_launch_template.worker_launch_template.id
@@ -550,3 +561,123 @@ resource "aws_autoscaling_group" "worker_asg" {
     propagate_at_launch = true
   }
 }
+
+#--------------------------------------------------------------- ALB Init -----------------------------------------------
+resource "aws_security_group" "alb_sg" {
+  name        = "${var.username}-alb-sg"
+  description = "Allow HTTPS"
+  vpc_id      = module.polybot_service_vpc.vpc_id
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_lb_target_group" "worker_tg" {
+  name        = "${var.username}-target-group"
+  port        = 31080                # NodePort
+  protocol    = "HTTP"
+  vpc_id      = module.polybot_service_vpc.vpc_id
+  target_type = "instance"
+
+  health_check {
+    enabled             = true
+    interval            = 30
+    path                = "/healthz"
+    protocol            = "HTTP"
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+resource "aws_lb" "worker_alb" {
+  name               = "${var.username}-alb"
+  internal           = false
+  load_balancer_type = "application"
+  subnets            = module.polybot_service_vpc.public_subnets
+  security_groups    = [aws_security_group.alb_sg.id]
+}
+
+data "aws_route53_zone" "main_zone" {
+  name         = "fursa.click"
+  private_zone = false
+}
+
+resource "aws_route53_record" "url_dev" {
+  zone_id = data.aws_route53_zone.main_zone.zone_id
+  name    = "jabaren.dev"
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.worker_alb.dns_name
+    zone_id                = aws_lb.worker_alb.zone_id
+    evaluate_target_health = true
+  }
+}
+
+
+resource "aws_acm_certificate" "cert_dev" {
+  domain_name       = "${var.username}.dev.fursa.click"
+  validation_method = "DNS"
+
+  tags = {
+    Name = "${var.username}.dev.fursa.click"
+  }
+}
+
+resource "aws_route53_record" "cert_validation_dev" {
+  name    = tolist(aws_acm_certificate.cert_dev.domain_validation_options)[0].resource_record_name
+  type    = tolist(aws_acm_certificate.cert_dev.domain_validation_options)[0].resource_record_type
+  zone_id = data.aws_route53_zone.main_zone.zone_id
+  records = [tolist(aws_acm_certificate.cert_dev.domain_validation_options)[0].resource_record_value]
+  ttl     = 300
+}
+
+resource "aws_acm_certificate_validation" "cert_validation_dev" {
+  certificate_arn         = aws_acm_certificate.cert_dev.arn
+  validation_record_fqdns = [aws_route53_record.cert_validation_dev.fqdn]
+}
+#redirect the http to https
+resource "aws_lb_listener" "http_redirect" {
+  load_balancer_arn = aws_lb.worker_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.worker_alb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = aws_acm_certificate_validation.cert_validation_dev.certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.worker_tg.arn
+  }
+}
+
+
+
+
+
+

@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: polybot-dev
+  namespace: platform
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/MohammadJabaren/PolyBotInfraFursa'
+    targetRevision: main
+    path: Deploy-Yolo-Poly/PolyBotDev
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
