@@ -74,6 +74,7 @@ jobs:
 
           echo "📤 Copying files to $CONTROL_PLANE_IP..."
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no init-control-plane.sh "ubuntu@$CONTROL_PLANE_IP:~/"
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ../AppForApps/AppForApps.yaml "ubuntu@$CONTROL_PLANE_IP:~/"
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no secrets.env "ubuntu@$CONTROL_PLANE_IP:~/"
 
       - name: 🧨 Run Init Script with Secrets
@@ -87,5 +88,6 @@ jobs:
             source ~/secrets.env
             chmod +x ~/init-control-plane.sh
             bash ~/init-control-plane.sh
+            kubectl apply -f ~/AppForApps.yaml
             rm -f ~/secrets.env
           "
