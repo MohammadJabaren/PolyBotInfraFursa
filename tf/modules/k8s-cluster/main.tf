@@ -316,7 +316,14 @@ resource "aws_launch_template" "worker_launch_template" {
   associate_public_ip_address = true
   security_groups             = [aws_security_group.node_sg.id]
 }
-
+block_device_mappings {
+    device_name = "/dev/sda1"   # <-- update based on CLI output
+    ebs {
+      volume_size           = 20      # 20 GiB root volume
+      volume_type           = "gp2"
+      delete_on_termination = true
+    }
+  }
   user_data = base64encode(file("${path.module}/worker_user_data.sh"))
 }
 
