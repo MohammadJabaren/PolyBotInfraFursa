@@ -150,6 +150,18 @@ resource "aws_security_group_rule" "allow_alb_to_nodeport" {
   source_security_group_id = aws_security_group.alb_sg.id
   description              = "Allow ALB to access NodePort 31080 on worker nodes"
 }
+
+
+resource "aws_security_group_rule" "allow_cp_to_node" {
+  type                     = "ingress"
+  from_port                = 0
+  to_port                  = 0
+  protocol                 = -1
+  security_group_id        = aws_security_group.node_sg.id
+  source_security_group_id = aws_security_group.cp_sg.id
+  description              = "Allow ALB to access NodePort 31080 on worker nodes"
+}
+
 # create iam role
 resource "aws_iam_role" "polybot_role" {
   name = "Jabaren_project_role"
@@ -323,7 +335,7 @@ block_device_mappings {
       volume_type           = "gp2"
       delete_on_termination = true
     }
-  }
+}
   user_data = base64encode(file("${path.module}/worker_user_data.sh"))
 }
 
