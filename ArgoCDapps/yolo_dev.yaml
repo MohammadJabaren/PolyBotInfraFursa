@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: polybot-dev
+  name: yolo-dev
   namespace: platform
 spec:
   project: default
   source:
     repoURL: 'https://github.com/MohammadJabaren/PolyBotInfraFursa'
     targetRevision: main
-    path: Deploy-Yolo-Poly/PolyBotDev
+    path: Deploy-Yolo-Poly/YoloDev
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dev

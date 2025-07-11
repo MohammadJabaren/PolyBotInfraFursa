@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: polybot
-          image: mohammadjabaren/polybot-dev:31
+          image: mohammadjabaren/polybot-dev:32
           imagePullPolicy: Always
           ports:
             - containerPort: 8443

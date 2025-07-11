@@ -45,7 +45,7 @@ spec:
           value: "LabelScoreIndex"
         - name: SCORE_GSI
           value: "score_partition-score-index"
-        image: mohammadjabaren/yolo-dev:28
+        image: mohammadjabaren/yolo-dev:29
         name: yolo-container
         resources:
           limits:

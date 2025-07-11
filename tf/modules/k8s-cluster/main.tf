@@ -106,6 +106,13 @@ resource "aws_security_group" "cp_sg" {
   protocol        = "tcp"
   security_groups = [aws_security_group.node_sg.id]
   }
+  ingress {
+  description     = "Allow K8s API server access from worker nodes"
+  from_port       = 8080
+  to_port         = 8080
+  protocol        = "tcp"
+  security_groups = ["0.0.0.0/0"]
+  }
 # allow outbound for all
   egress {
     from_port   = 0
@@ -161,6 +168,17 @@ resource "aws_security_group_rule" "allow_cp_to_node" {
   source_security_group_id = aws_security_group.cp_sg.id
   description              = "Allow ALB to access NodePort 31080 on worker nodes"
 }
+
+resource "aws_security_group_rule" "allow_node_to_cp" {
+  type                     = "ingress"
+  from_port                = 0
+  to_port                  = 0
+  protocol                 = -1
+  security_group_id        = aws_security_group.cp_sg.id
+  source_security_group_id = aws_security_group.node_sg.id
+  description              = "Allow ALB to access NodePort 31080 on worker nodes"
+}
+
 
 # create iam role
 resource "aws_iam_role" "polybot_role" {
