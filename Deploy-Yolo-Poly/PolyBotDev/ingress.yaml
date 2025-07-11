@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: Jabaren.dev.fursa.click
+    - host: jabaren.dev.fursa.click
       http:
         paths:
           - path: /
