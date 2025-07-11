@@ -21,7 +21,7 @@ spec:
           ports:
             - containerPort: 8443
           env:
-            - name: TELEGRAM_TOKEN
+            - name: TELEGRAM_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: my-secrets-dev
