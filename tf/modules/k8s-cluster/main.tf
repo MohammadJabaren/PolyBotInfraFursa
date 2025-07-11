@@ -111,7 +111,7 @@ resource "aws_security_group" "cp_sg" {
   from_port       = 8080
   to_port         = 8080
   protocol        = "tcp"
-  security_groups = ["0.0.0.0/0"]
+  cidr_blocks = ["0.0.0.0/0"]
   }
 # allow outbound for all
   egress {
