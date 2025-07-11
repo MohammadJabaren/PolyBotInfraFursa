@@ -37,7 +37,7 @@ spec:
             secretKeyRef:
               key: SQS_URL
               name: my-secrets-dev
-        - name: POLYBOT_URL
+        - name: POLYBOT_IP
           value: polybot-dev-service
         - name: STORAGE_TYPE
           value: "dynamodb"
